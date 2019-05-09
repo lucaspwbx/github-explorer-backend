@@ -99,4 +99,32 @@ func main() {
 		panic(err)
 	}
 	fmt.Println(users)
+
+	var projFromuser []project
+	rows, err = db.Query(`
+		select p.id, p.name, p.description, p.author, p.language, p.url from projects p inner join bookmarked_projects bp on p.id = bp.project_id where bp.user_id = 3;
+	`)
+	if err != nil {
+		panic(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		project := project{}
+		err := rows.Scan(
+			&project.Id,
+			&project.Name,
+			&project.Description,
+			&project.Author,
+			&project.Language,
+			&project.Url)
+		if err != nil {
+			panic(err)
+		}
+		projFromuser = append(projFromuser, project)
+	}
+	err = rows.Err()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(projFromuser)
 }
