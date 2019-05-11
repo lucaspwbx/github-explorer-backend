@@ -31,14 +31,23 @@ type user struct {
 	Email    string
 }
 
-func addProject(db *sql.DB, proj *project) {
+func addProject(db *sql.DB, proj *project) error {
 	sqlStmt := `INSERT INTO projects(name, description, author, language, url) VALUES ($1, $2, $3, $4, $5) RETURNING id`
-	//id := 0
 	err := db.QueryRow(sqlStmt, proj.Name, proj.Description, proj.Author, proj.Language, proj.Url).Scan(&proj.Id)
 	if err != nil {
 		panic(err)
 	}
 	fmt.Println("New record is is: ", proj.Id)
+	return nil
+}
+
+func bookmarkProject(db *sql.DB, userId int, projectId int) error {
+	sqlStmt := `INSERT INTO bookmarked_projects(user_id, project_id) VALUES ($1, $2)`
+	_, err := db.Exec(sqlStmt, userId, projectId)
+	if err != nil {
+		panic(err)
+	}
+	return nil
 }
 
 func main() {
@@ -139,4 +148,5 @@ func main() {
 	fmt.Println(projFromuser)
 
 	//addProject(db, &project{Name: "teste", Description: "Too", Author: "Ulver", Language: "JS", Url: "www.language.com"})
+	//bookmarkProject(db)
 }
