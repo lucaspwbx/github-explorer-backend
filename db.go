@@ -61,22 +61,7 @@ func projectExists(db *sql.DB, name string, author string, language string) (int
 	return id, nil
 }
 
-func main() {
-	connString := fmt.Sprintf("host=%s port=%d user=%s "+"password=%s dbname=%s sslmode=disable",
-		host, port, userPg, password, dbname)
-	db, err := sql.Open("postgres", connString)
-	if err != nil {
-		panic(err)
-	}
-	defer db.Close()
-
-	err = db.Ping()
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println("Successfully connected")
-
+func fetchProjects(db *sql.DB) []project {
 	var projects []project
 	rows, err := db.Query(`
 		SELECT id, name, description, author, language, url from projects
@@ -103,10 +88,12 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(projects)
+	return projects
+}
 
+func fetchUsers(db *sql.DB) []user {
 	var users []user
-	rows, err = db.Query(`
+	rows, err := db.Query(`
 		SELECT id, username, password, email from users`)
 	if err != nil {
 		panic(err)
@@ -128,12 +115,13 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(users)
+	return users
+}
 
-	var projFromuser []project
-	rows, err = db.Query(`
-		select p.id, p.name, p.description, p.author, p.language, p.url from projects p inner join bookmarked_projects bp on p.id = bp.project_id where bp.user_id = 3;
-	`)
+func fetchUserBookmarkedProjects(db *sql.DB, userId int) []project {
+	var projsFromUser []project
+	rows, err := db.Query(`
+		select p.id, p.name, p.description, p.author, p.language, p.url from projects p inner join bookmarked_projects bp on p.id = bp.project_id where bp.user_id = $1`, userId)
 	if err != nil {
 		panic(err)
 	}
@@ -150,16 +138,34 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		projFromuser = append(projFromuser, project)
+		projsFromUser = append(projsFromUser, project)
 	}
 	err = rows.Err()
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(projFromuser)
+	return projsFromUser
+}
+
+func main() {
+	connString := fmt.Sprintf("host=%s port=%d user=%s "+"password=%s dbname=%s sslmode=disable",
+		host, port, userPg, password, dbname)
+	db, err := sql.Open("postgres", connString)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
+	err = db.Ping()
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Successfully connected")
 
 	//addProject(db, &project{Name: "teste", Description: "Too", Author: "Ulver", Language: "JS", Url: "www.language.com"})
 	//bookmarkProject(db)
 	//id, err := projectExists(db, "alco", "miasma", "elixir")
 	//fmt.Println(id)
+	//fmt.Println(fetchUserBookmarkedProjects(db, 3))
 }
