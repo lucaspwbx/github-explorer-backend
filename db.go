@@ -31,6 +31,16 @@ type user struct {
 	Email    string
 }
 
+func addProject(db *sql.DB, proj *project) {
+	sqlStmt := `INSERT INTO projects(name, description, author, language, url) VALUES ($1, $2, $3, $4, $5) RETURNING id`
+	//id := 0
+	err := db.QueryRow(sqlStmt, proj.Name, proj.Description, proj.Author, proj.Language, proj.Url).Scan(&proj.Id)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("New record is is: ", proj.Id)
+}
+
 func main() {
 	connString := fmt.Sprintf("host=%s port=%d user=%s "+"password=%s dbname=%s sslmode=disable",
 		host, port, userPg, password, dbname)
@@ -127,4 +137,6 @@ func main() {
 		panic(err)
 	}
 	fmt.Println(projFromuser)
+
+	//addProject(db, &project{Name: "teste", Description: "Too", Author: "Ulver", Language: "JS", Url: "www.language.com"})
 }
