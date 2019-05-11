@@ -3,10 +3,12 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/labstack/echo"
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 )
 
 const (
@@ -33,23 +35,32 @@ type user struct {
 	Email    string
 }
 
-func addProject(db *sql.DB, proj *project) error {
+func addProject(db *sql.DB, proj *project) (int, error) {
 	sqlStmt := `INSERT INTO projects(name, description, author, language, url) VALUES ($1, $2, $3, $4, $5) RETURNING id`
 	err := db.QueryRow(sqlStmt, proj.Name, proj.Description, proj.Author, proj.Language, proj.Url).Scan(&proj.Id)
 	if err != nil {
-		panic(err)
+		//	panic(err)
+		log.Fatal("Add project", err)
+		return 0, err
 	}
 	fmt.Println("New record is is: ", proj.Id)
-	return nil
+	return proj.Id, nil
 }
 
-func bookmarkProject(db *sql.DB, userId int, projectId int) error {
+func bookmarkProject(db *sql.DB, userId int, projectId int) (bool, error) {
 	sqlStmt := `INSERT INTO bookmarked_projects(user_id, project_id) VALUES ($1, $2)`
 	_, err := db.Exec(sqlStmt, userId, projectId)
 	if err != nil {
-		panic(err)
+		//panic(err)
+		if err, ok := err.(*pq.Error); ok {
+			if err.Code == "23505" {
+				log.Println("Project is already bookmarked")
+				return false, err
+			}
+		}
+		log.Fatal("Bookmark project: ", err)
 	}
-	return nil
+	return true, nil
 }
 
 func projectExists(db *sql.DB, name string, author string, language string) (int, error) {
@@ -57,7 +68,8 @@ func projectExists(db *sql.DB, name string, author string, language string) (int
 	id := 0
 	err := db.QueryRow(sqlStmt, name, author, language).Scan(&id)
 	if err != nil {
-		panic(err)
+		//	log.Fatal("Project exists: ", err)
+		//	panic(err)
 		return 0, err
 	}
 	return id, nil
@@ -171,11 +183,32 @@ func main() {
 	})
 	e.POST("/users/:id/bookmarked_projects", func(c echo.Context) error {
 		p := &project{}
-		//	id := c.Param("id")
+		userId, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			return err
+		}
 		if err := c.Bind(p); err != nil {
 			return err
 		}
-		return c.JSON(http.StatusCreated, p)
+		projectId, err := projectExists(db, p.Name, p.Author, p.Language)
+		if err != nil {
+			newProjectId, err := addProject(db, p)
+			if err != nil {
+				return err
+			}
+			_, err = bookmarkProject(db, userId, newProjectId)
+			if err != nil {
+				log.Println("Problems bookmarking project 1")
+				return c.JSON(http.StatusBadRequest, "Failed to bookmark project -> 1")
+			}
+			return c.JSON(http.StatusOK, "Bookmarked project 1")
+		}
+		_, err = bookmarkProject(db, userId, projectId)
+		if err != nil {
+			log.Println("Problems bookmarking project 2")
+			return c.JSON(http.StatusBadRequest, "Failed to bookmark project -> 2")
+		}
+		return c.JSON(http.StatusOK, "bookmarked project 2")
 	})
 	e.Logger.Fatal(e.Start(":1323"))
 }
