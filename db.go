@@ -3,7 +3,9 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"net/http"
 
+	"github.com/labstack/echo"
 	_ "github.com/lib/pq"
 )
 
@@ -17,11 +19,11 @@ const (
 
 type project struct {
 	Id          int
-	Name        string
-	Description string
-	Author      string
-	Language    string
-	Url         string
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Author      string `json:"author"`
+	Language    string `json:"language"`
+	Url         string `json:"url"`
 }
 
 type user struct {
@@ -163,9 +165,23 @@ func main() {
 
 	fmt.Println("Successfully connected")
 
-	//addProject(db, &project{Name: "teste", Description: "Too", Author: "Ulver", Language: "JS", Url: "www.language.com"})
-	//bookmarkProject(db)
-	//id, err := projectExists(db, "alco", "miasma", "elixir")
-	//fmt.Println(id)
-	//fmt.Println(fetchUserBookmarkedProjects(db, 3))
+	e := echo.New()
+	e.GET("/", func(c echo.Context) error {
+		return c.String(http.StatusOK, "Hello World")
+	})
+	e.POST("/users/:id/bookmarked_projects", func(c echo.Context) error {
+		p := &project{}
+		//	id := c.Param("id")
+		if err := c.Bind(p); err != nil {
+			return err
+		}
+		return c.JSON(http.StatusCreated, p)
+	})
+	e.Logger.Fatal(e.Start(":1323"))
 }
+
+//addProject(db, &project{Name: "teste", Description: "Too", Author: "Ulver", Language: "JS", Url: "www.language.com"})
+//bookmarkProject(db)
+//id, err := projectExists(db, "alco", "miasma", "elixir")
+//fmt.Println(id)
+//fmt.Println(fetchUserBookmarkedProjects(db, 3))
