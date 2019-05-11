@@ -50,6 +50,17 @@ func bookmarkProject(db *sql.DB, userId int, projectId int) error {
 	return nil
 }
 
+func projectExists(db *sql.DB, name string, author string, language string) (int, error) {
+	sqlStmt := `SELECT id FROM projects WHERE name = $1 AND author = $2 AND language = $3`
+	id := 0
+	err := db.QueryRow(sqlStmt, name, author, language).Scan(&id)
+	if err != nil {
+		panic(err)
+		return 0, err
+	}
+	return id, nil
+}
+
 func main() {
 	connString := fmt.Sprintf("host=%s port=%d user=%s "+"password=%s dbname=%s sslmode=disable",
 		host, port, userPg, password, dbname)
@@ -149,4 +160,6 @@ func main() {
 
 	//addProject(db, &project{Name: "teste", Description: "Too", Author: "Ulver", Language: "JS", Url: "www.language.com"})
 	//bookmarkProject(db)
+	//id, err := projectExists(db, "alco", "miasma", "elixir")
+	//fmt.Println(id)
 }
