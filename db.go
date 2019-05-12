@@ -33,9 +33,9 @@ type project struct {
 
 type user struct {
 	Id       int
-	Username string `"json:username"`
-	Password string `"json:password"`
-	Email    string `"json:email"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Email    string `json:"email"`
 }
 
 func HashPassword(password string) (string, error) {
@@ -136,6 +136,18 @@ func fetchProjects(db *sql.DB) []project {
 	return projects
 }
 
+func confirmUser(db *sql.DB, u *user) error {
+	sqlStmt := `SELECT id FROM users WHERE username = $1 AND email = $2 AND password = $3;`
+	id := 0
+	err := db.QueryRow(sqlStmt, u.Username, u.Email, u.Password).Scan(&id)
+	log.Println(err)
+	log.Println(id)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func fetchUsers(db *sql.DB) []user {
 	var users []user
 	rows, err := db.Query(`
@@ -204,7 +216,6 @@ func addNewUserHandler(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, "Error signing up new user - 2")
 	}
 	u.Password = hash
-	log.Println(u)
 	sqlStmt := `INSERT INTO users(username, password, email, created_on) VALUES ($1, $2, $3, $4) RETURNING id`
 	err = db.QueryRow(sqlStmt, u.Username, u.Password, u.Email, "now()").Scan(&u.Id)
 	if err != nil {
@@ -217,7 +228,17 @@ func addNewUserHandler(c echo.Context) error {
 }
 
 func loginUserHandler(c echo.Context) error {
-	return nil
+	u := &user{}
+	db := getDB()
+	if err := c.Bind(u); err != nil {
+		return err
+	}
+	err := confirmUser(db, u)
+	if err != nil {
+		log.Println("Hash does not match")
+		return c.JSON(http.StatusForbidden, "Login credentials are not correct")
+	}
+	return c.JSON(http.StatusOK, "Logged in")
 }
 
 func logoutUserHandler(c echo.Context) error {
@@ -248,8 +269,8 @@ func main() {
 		return c.String(http.StatusOK, "Hello World")
 	})
 	e.POST("/users", addNewUserHandler)
-	e.POST("/users/:id/login", loginUserHandler)
-	e.POST("/users/:id/logout", logoutUserHandler)
+	e.POST("/users/login", loginUserHandler)
+	e.POST("/users/logout", logoutUserHandler)
 	//e.POST("/users/:id/bookmarked_projects", func(c echo.Context) error {
 	//p := &project{}
 	//userId, err := strconv.Atoi(c.Param("id"))
