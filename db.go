@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
@@ -24,7 +25,7 @@ const (
 )
 
 type project struct {
-	Id          int
+	Id          int    `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Author      string `json:"author"`
@@ -183,6 +184,7 @@ func fetchUsers(db *sql.DB) []user {
 
 func fetchUserBookmarkedProjects(db *sql.DB, userId int) []project {
 	var projsFromUser []project
+	projsFromUser = []project{}
 	rows, err := db.Query(`
 		select p.id, p.name, p.description, p.author, p.language, p.url from projects p inner join bookmarked_projects bp on p.id = bp.project_id where bp.user_id = $1`, userId)
 	if err != nil {
@@ -278,6 +280,18 @@ func main() {
 	e.POST("/users", addNewUserHandler)
 	e.POST("/users/login", loginUserHandler)
 	e.POST("/users/logout", logoutUserHandler)
+	e.GET("/users/:id/bookmarked_projects", func(c echo.Context) error {
+		userId, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			return err
+		}
+		db := getDB()
+		projects := fetchUserBookmarkedProjects(db, userId)
+		if projects != nil {
+			return c.JSON(http.StatusOK, projects)
+		}
+		return c.JSON(http.StatusOK, projects)
+	})
 	//e.POST("/users/:id/bookmarked_projects", func(c echo.Context) error {
 	//p := &project{}
 	//userId, err := strconv.Atoi(c.Param("id"))
