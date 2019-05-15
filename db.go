@@ -33,10 +33,13 @@ type project struct {
 }
 
 type user struct {
-	Id       int
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Email    string `json:"email"`
+	Id               int    `json:"id"`
+	Username         string `json:"username"`
+	Password         string `json:"password"`
+	Email            string `json:"email"`
+	Languages        string `json:"languages"`
+	Frequency        string `json:"frequency"`
+	FavoriteLanguage string `json:"favorite_language"`
 }
 
 func HashPassword(password string) (string, error) {
@@ -137,16 +140,18 @@ func fetchProjects(db *sql.DB) []project {
 	return projects
 }
 
-func confirmUser(db *sql.DB, u *user) error {
-	sqlStmt := `SELECT id FROM users WHERE username = $1 AND email = $2 AND password = $3;`
-	id := 0
-	err := db.QueryRow(sqlStmt, u.Username, u.Email, u.Password).Scan(&id)
+func confirmUser(db *sql.DB, u *user) (*user, error) {
+	sqlStmt := `SELECT id, languages, frequency, favorite_language FROM users WHERE username = $1 AND email = $2 AND password = $3;`
+	//id := 0
+	user := &user{}
+	//	err := db.QueryRow(sqlStmt, u.Username, u.Email, u.Password).Scan(&id)
+	err := db.QueryRow(sqlStmt, u.Username, u.Email, u.Password).Scan(&user.Id, &user.Languages, &user.Frequency, &user.FavoriteLanguage)
 	log.Println(err)
-	log.Println(id)
+	log.Println(user)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return user, nil
 }
 
 func fetchUsers(db *sql.DB) []user {
@@ -234,12 +239,12 @@ func loginUserHandler(c echo.Context) error {
 	if err := c.Bind(u); err != nil {
 		return err
 	}
-	err := confirmUser(db, u)
+	user, err := confirmUser(db, u)
 	if err != nil {
 		log.Println("Hash does not match")
 		return c.JSON(http.StatusForbidden, "Login credentials are not correct")
 	}
-	return c.JSON(http.StatusOK, "Logged in")
+	return c.JSON(http.StatusOK, user)
 }
 
 func logoutUserHandler(c echo.Context) error {
