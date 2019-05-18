@@ -88,9 +88,7 @@ func projectExists(db *sql.DB, name string, author string, language string) (int
 
 func confirmUser(db *sql.DB, u *user) (*user, error) {
 	sqlStmt := `SELECT id, languages, frequency, favorite_language FROM users WHERE username = $1 AND email = $2 AND password = $3;`
-	//id := 0
 	user := &user{}
-	//	err := db.QueryRow(sqlStmt, u.Username, u.Email, u.Password).Scan(&id)
 	err := db.QueryRow(sqlStmt, u.Username, u.Email, u.Password).Scan(&user.Id, &user.Languages, &user.Frequency, &user.FavoriteLanguage)
 	log.Println(err)
 	log.Println(user)
@@ -132,8 +130,6 @@ func fetchUserBookmarkedProjects(db *sql.DB, userId int) []project {
 
 func addNewUserHandler(c echo.Context) error {
 	u := &user{}
-	//db := getDB()
-	db := config.Connection()
 	if err := c.Bind(u); err != nil {
 		return c.JSON(http.StatusBadRequest, "Error signing up new user - 1")
 	}
@@ -144,7 +140,7 @@ func addNewUserHandler(c echo.Context) error {
 	}
 	u.Password = hash
 	sqlStmt := `INSERT INTO users(username, password, email, created_on) VALUES ($1, $2, $3, $4) RETURNING id`
-	err = db.QueryRow(sqlStmt, u.Username, u.Password, u.Email, "now()").Scan(&u.Id)
+	err = config.Connection().QueryRow(sqlStmt, u.Username, u.Password, u.Email, "now()").Scan(&u.Id)
 	if err != nil {
 		log.Println(err)
 		return c.JSON(http.StatusBadRequest, "Error signing up new user - 3")
@@ -159,12 +155,10 @@ func addNewUserHandler(c echo.Context) error {
 
 func loginUserHandler(c echo.Context) error {
 	u := &user{}
-	//db := getDB()
-	db := config.Connection()
 	if err := c.Bind(u); err != nil {
 		return err
 	}
-	user, err := confirmUser(db, u)
+	user, err := confirmUser(config.Connection(), u)
 	if err != nil {
 		log.Println("Hash does not match")
 		return c.JSON(http.StatusForbidden, "Login credentials are not correct")
@@ -191,8 +185,6 @@ func main() {
 		if err != nil {
 			return err
 		}
-		//db := getDB()
-		//	projects := fetchUserBookmarkedProjects(db, userId)
 		projects := fetchUserBookmarkedProjects(config.Connection(), userId)
 		if projects != nil {
 			return c.JSON(http.StatusOK, projects)
@@ -208,7 +200,6 @@ func main() {
 		if err := c.Bind(p); err != nil {
 			return err
 		}
-		//db := getDB()
 		projectId, err := projectExists(config.Connection(), p.Name, p.Author, p.Language)
 		if err != nil {
 			newProjectId, err := addProject(config.Connection(), p)
@@ -231,76 +222,3 @@ func main() {
 	})
 	e.Logger.Fatal(e.Start(":1323"))
 }
-
-//func fetchProjects(db *sql.DB) []project {
-//var projects []project
-//rows, err := db.Query(`
-//SELECT id, name, description, author, language, url from projects
-//`)
-//if err != nil {
-//panic(err)
-//}
-//defer rows.Close()
-//for rows.Next() {
-//project := project{}
-//err := rows.Scan(
-//&project.Id,
-//&project.Name,
-//&project.Description,
-//&project.Author,
-//&project.Language,
-//&project.Url)
-//if err != nil {
-//panic(err)
-//}
-//projects = append(projects, project)
-//}
-//err = rows.Err()
-//if err != nil {
-//panic(err)
-//}
-//return projects
-//}
-//func fetchUsers(db *sql.DB) []user {
-//var users []user
-//rows, err := db.Query(`
-//SELECT id, username, password, email from users`)
-//if err != nil {
-//panic(err)
-//}
-//defer rows.Close()
-//for rows.Next() {
-//us := user{}
-//err = rows.Scan(
-//&us.Id,
-//&us.Username,
-//&us.Password,
-//&us.Email)
-//if err != nil {
-//panic(err)
-//}
-//users = append(users, us)
-//}
-//err = rows.Err()
-//if err != nil {
-//panic(err)
-//}
-//return users
-//}
-//func getDB() *sql.DB {
-//connString := fmt.Sprintf("host=%s port=%d user=%s "+"password=%s dbname=%s sslmode=disable",
-//host, port, userPg, password, dbname)
-//db, err := sql.Open("postgres", connString)
-//if err != nil {
-//panic(err)
-//}
-////defer db.Close()
-
-//err = db.Ping()
-//if err != nil {
-//panic(err)
-//}
-
-//log.Println("Successfully connected")
-//return db
-//}
