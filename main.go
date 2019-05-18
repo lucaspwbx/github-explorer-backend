@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"teste/db"
 
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
@@ -22,6 +23,10 @@ const (
 	userPg   = "lucas"
 	password = "teste"
 	dbname   = "foo_dev"
+)
+
+var (
+	config db.Config
 )
 
 type project struct {
@@ -111,36 +116,6 @@ func projectExists(db *sql.DB, name string, author string, language string) (int
 	return id, nil
 }
 
-func fetchProjects(db *sql.DB) []project {
-	var projects []project
-	rows, err := db.Query(`
-		SELECT id, name, description, author, language, url from projects
-	`)
-	if err != nil {
-		panic(err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		project := project{}
-		err := rows.Scan(
-			&project.Id,
-			&project.Name,
-			&project.Description,
-			&project.Author,
-			&project.Language,
-			&project.Url)
-		if err != nil {
-			panic(err)
-		}
-		projects = append(projects, project)
-	}
-	err = rows.Err()
-	if err != nil {
-		panic(err)
-	}
-	return projects
-}
-
 func confirmUser(db *sql.DB, u *user) (*user, error) {
 	sqlStmt := `SELECT id, languages, frequency, favorite_language FROM users WHERE username = $1 AND email = $2 AND password = $3;`
 	//id := 0
@@ -153,33 +128,6 @@ func confirmUser(db *sql.DB, u *user) (*user, error) {
 		return nil, err
 	}
 	return user, nil
-}
-
-func fetchUsers(db *sql.DB) []user {
-	var users []user
-	rows, err := db.Query(`
-		SELECT id, username, password, email from users`)
-	if err != nil {
-		panic(err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		us := user{}
-		err = rows.Scan(
-			&us.Id,
-			&us.Username,
-			&us.Password,
-			&us.Email)
-		if err != nil {
-			panic(err)
-		}
-		users = append(users, us)
-	}
-	err = rows.Err()
-	if err != nil {
-		panic(err)
-	}
-	return users
 }
 
 func fetchUserBookmarkedProjects(db *sql.DB, userId int) []project {
@@ -214,7 +162,8 @@ func fetchUserBookmarkedProjects(db *sql.DB, userId int) []project {
 
 func addNewUserHandler(c echo.Context) error {
 	u := &user{}
-	db := getDB()
+	//db := getDB()
+	db := config.Connection()
 	if err := c.Bind(u); err != nil {
 		return c.JSON(http.StatusBadRequest, "Error signing up new user - 1")
 	}
@@ -237,7 +186,8 @@ func addNewUserHandler(c echo.Context) error {
 
 func loginUserHandler(c echo.Context) error {
 	u := &user{}
-	db := getDB()
+	//db := getDB()
+	db := config.Connection()
 	if err := c.Bind(u); err != nil {
 		return err
 	}
@@ -253,25 +203,8 @@ func logoutUserHandler(c echo.Context) error {
 	return nil
 }
 
-func getDB() *sql.DB {
-	connString := fmt.Sprintf("host=%s port=%d user=%s "+"password=%s dbname=%s sslmode=disable",
-		host, port, userPg, password, dbname)
-	db, err := sql.Open("postgres", connString)
-	if err != nil {
-		panic(err)
-	}
-	//defer db.Close()
-
-	err = db.Ping()
-	if err != nil {
-		panic(err)
-	}
-
-	log.Println("Successfully connected")
-	return db
-}
-
 func main() {
+	config := db.NewConfig(host, port, userPg, password, dbname)
 	e := echo.New()
 	e.Use(middleware.CORS())
 	e.GET("/", func(c echo.Context) error {
@@ -285,8 +218,9 @@ func main() {
 		if err != nil {
 			return err
 		}
-		db := getDB()
-		projects := fetchUserBookmarkedProjects(db, userId)
+		//db := getDB()
+		//	projects := fetchUserBookmarkedProjects(db, userId)
+		projects := fetchUserBookmarkedProjects(config.Connection(), userId)
 		if projects != nil {
 			return c.JSON(http.StatusOK, projects)
 		}
@@ -301,21 +235,21 @@ func main() {
 		if err := c.Bind(p); err != nil {
 			return err
 		}
-		db := getDB()
-		projectId, err := projectExists(db, p.Name, p.Author, p.Language)
+		//db := getDB()
+		projectId, err := projectExists(config.Connection(), p.Name, p.Author, p.Language)
 		if err != nil {
-			newProjectId, err := addProject(db, p)
+			newProjectId, err := addProject(config.Connection(), p)
 			if err != nil {
 				return err
 			}
-			_, err = bookmarkProject(db, userId, newProjectId)
+			_, err = bookmarkProject(config.Connection(), userId, newProjectId)
 			if err != nil {
 				log.Println("Problems bookmarking project 1")
 				return c.JSON(http.StatusBadRequest, "Failed to bookmark project -> 1")
 			}
 			return c.JSON(http.StatusOK, "Bookmarked project 1")
 		}
-		_, err = bookmarkProject(db, userId, projectId)
+		_, err = bookmarkProject(config.Connection(), userId, projectId)
 		if err != nil {
 			log.Println("Problems bookmarking project 2")
 			return c.JSON(http.StatusBadRequest, "Failed to bookmark project -> 2")
@@ -324,3 +258,76 @@ func main() {
 	})
 	e.Logger.Fatal(e.Start(":1323"))
 }
+
+//func fetchProjects(db *sql.DB) []project {
+//var projects []project
+//rows, err := db.Query(`
+//SELECT id, name, description, author, language, url from projects
+//`)
+//if err != nil {
+//panic(err)
+//}
+//defer rows.Close()
+//for rows.Next() {
+//project := project{}
+//err := rows.Scan(
+//&project.Id,
+//&project.Name,
+//&project.Description,
+//&project.Author,
+//&project.Language,
+//&project.Url)
+//if err != nil {
+//panic(err)
+//}
+//projects = append(projects, project)
+//}
+//err = rows.Err()
+//if err != nil {
+//panic(err)
+//}
+//return projects
+//}
+//func fetchUsers(db *sql.DB) []user {
+//var users []user
+//rows, err := db.Query(`
+//SELECT id, username, password, email from users`)
+//if err != nil {
+//panic(err)
+//}
+//defer rows.Close()
+//for rows.Next() {
+//us := user{}
+//err = rows.Scan(
+//&us.Id,
+//&us.Username,
+//&us.Password,
+//&us.Email)
+//if err != nil {
+//panic(err)
+//}
+//users = append(users, us)
+//}
+//err = rows.Err()
+//if err != nil {
+//panic(err)
+//}
+//return users
+//}
+//func getDB() *sql.DB {
+//connString := fmt.Sprintf("host=%s port=%d user=%s "+"password=%s dbname=%s sslmode=disable",
+//host, port, userPg, password, dbname)
+//db, err := sql.Open("postgres", connString)
+//if err != nil {
+//panic(err)
+//}
+////defer db.Close()
+
+//err = db.Ping()
+//if err != nil {
+//panic(err)
+//}
+
+//log.Println("Successfully connected")
+//return db
+//}
