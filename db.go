@@ -292,40 +292,35 @@ func main() {
 		}
 		return c.JSON(http.StatusOK, projects)
 	})
-	//e.POST("/users/:id/bookmarked_projects", func(c echo.Context) error {
-	//p := &project{}
-	//userId, err := strconv.Atoi(c.Param("id"))
-	//if err != nil {
-	//return err
-	//}
-	//if err := c.Bind(p); err != nil {
-	//return err
-	//}
-	//projectId, err := projectExists(db, p.Name, p.Author, p.Language)
-	//if err != nil {
-	//newProjectId, err := addProject(db, p)
-	//if err != nil {
-	//return err
-	//}
-	//_, err = bookmarkProject(db, userId, newProjectId)
-	//if err != nil {
-	//log.Println("Problems bookmarking project 1")
-	//return c.JSON(http.StatusBadRequest, "Failed to bookmark project -> 1")
-	//}
-	//return c.JSON(http.StatusOK, "Bookmarked project 1")
-	//}
-	//_, err = bookmarkProject(db, userId, projectId)
-	//if err != nil {
-	//log.Println("Problems bookmarking project 2")
-	//return c.JSON(http.StatusBadRequest, "Failed to bookmark project -> 2")
-	//}
-	//return c.JSON(http.StatusOK, "bookmarked project 2")
-	//})
+	e.POST("/users/:id/bookmarked_projects", func(c echo.Context) error {
+		p := &project{}
+		userId, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			return err
+		}
+		if err := c.Bind(p); err != nil {
+			return err
+		}
+		db := getDB()
+		projectId, err := projectExists(db, p.Name, p.Author, p.Language)
+		if err != nil {
+			newProjectId, err := addProject(db, p)
+			if err != nil {
+				return err
+			}
+			_, err = bookmarkProject(db, userId, newProjectId)
+			if err != nil {
+				log.Println("Problems bookmarking project 1")
+				return c.JSON(http.StatusBadRequest, "Failed to bookmark project -> 1")
+			}
+			return c.JSON(http.StatusOK, "Bookmarked project 1")
+		}
+		_, err = bookmarkProject(db, userId, projectId)
+		if err != nil {
+			log.Println("Problems bookmarking project 2")
+			return c.JSON(http.StatusBadRequest, "Failed to bookmark project -> 2")
+		}
+		return c.JSON(http.StatusOK, "bookmarked project 2")
+	})
 	e.Logger.Fatal(e.Start(":1323"))
 }
-
-//addProject(db, &project{Name: "teste", Description: "Too", Author: "Ulver", Language: "JS", Url: "www.language.com"})
-//bookmarkProject(db)
-//id, err := projectExists(db, "alco", "miasma", "elixir")
-//fmt.Println(id)
-//fmt.Println(fetchUserBookmarkedProjects(db, 3))
