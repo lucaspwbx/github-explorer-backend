@@ -5,16 +5,14 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
 	"teste/db"
+	"teste/service"
 	"teste/util"
 
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 	"github.com/lib/pq"
-	"github.com/sendgrid/sendgrid-go"
-	"github.com/sendgrid/sendgrid-go/helpers/mail"
 )
 
 const (
@@ -46,24 +44,6 @@ type user struct {
 	Languages        string `json:"languages"`
 	Frequency        string `json:"frequency"`
 	FavoriteLanguage string `json:"favorite_language"`
-}
-
-func sendWelcomeEmail(username string, email string) {
-	from := mail.NewEmail("Trending Repos", "trendingrepos@xyz.com")
-	subject := "Welcome to Trending Repos"
-	to := mail.NewEmail(username, email)
-	plainTextContent := "Welcome do Trending Repos!"
-	htmlContent := "<strong>Welcome to Trending Repos!</strong>"
-	message := mail.NewSingleEmail(from, subject, to, plainTextContent, htmlContent)
-	client := sendgrid.NewSendClient(os.Getenv("SENDGRID_API_KEY"))
-	response, err := client.Send(message)
-	if err != nil {
-		log.Println(err)
-	} else {
-		fmt.Println(response.StatusCode)
-		fmt.Println(response.Body)
-		fmt.Println(response.Headers)
-	}
 }
 
 func addProject(db *sql.DB, proj *project) (int, error) {
@@ -170,7 +150,10 @@ func addNewUserHandler(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, "Error signing up new user - 3")
 	}
 	log.Println("New user is id: ", u.Id)
-	sendWelcomeEmail(u.Username, u.Email)
+	if err = service.SendEmail(u.Username, u.Email); err != nil {
+		log.Println("Error sending welcome email!")
+	}
+
 	return c.JSON(http.StatusOK, "OK")
 }
 
