@@ -50,11 +50,10 @@ func addProject(db *sql.DB, proj *project) (int, error) {
 	sqlStmt := `INSERT INTO projects(name, description, author, language, url) VALUES ($1, $2, $3, $4, $5) RETURNING id`
 	err := db.QueryRow(sqlStmt, proj.Name, proj.Description, proj.Author, proj.Language, proj.Url).Scan(&proj.Id)
 	if err != nil {
-		//	panic(err)
-		log.Fatal("Add project", err)
+		log.Println("Add project", err)
 		return 0, err
 	}
-	fmt.Println("New record is is: ", proj.Id)
+	log.Println("New record is is: ", proj.Id)
 	return proj.Id, nil
 }
 
@@ -62,10 +61,9 @@ func bookmarkProject(db *sql.DB, userId int, projectId int) (bool, error) {
 	sqlStmt := `INSERT INTO bookmarked_projects(user_id, project_id) VALUES ($1, $2)`
 	_, err := db.Exec(sqlStmt, userId, projectId)
 	if err != nil {
-		//panic(err)
 		if err, ok := err.(*pq.Error); ok {
 			if err.Code == "23505" {
-				log.Println("Project is already bookmarked")
+				log.Println("Project is already bookmarked!")
 				return false, err
 			}
 		}
@@ -79,8 +77,7 @@ func projectExists(db *sql.DB, name string, author string, language string) (int
 	id := 0
 	err := db.QueryRow(sqlStmt, name, author, language).Scan(&id)
 	if err != nil {
-		//	log.Fatal("Project exists: ", err)
-		//	panic(err)
+		log.Println("Project exists: ", err)
 		return 0, err
 	}
 	return id, nil
@@ -90,8 +87,6 @@ func confirmUser(db *sql.DB, u *user) (*user, error) {
 	sqlStmt := `SELECT id, languages, frequency, favorite_language FROM users WHERE username = $1 AND email = $2 AND password = $3;`
 	user := &user{}
 	err := db.QueryRow(sqlStmt, u.Username, u.Email, u.Password).Scan(&user.Id, &user.Languages, &user.Frequency, &user.FavoriteLanguage)
-	log.Println(err)
-	log.Println(user)
 	if err != nil {
 		return nil, err
 	}
@@ -117,13 +112,13 @@ func fetchUserBookmarkedProjects(db *sql.DB, userId int) []project {
 			&project.Language,
 			&project.Url)
 		if err != nil {
-			panic(err)
+			log.Println(err)
 		}
 		projsFromUser = append(projsFromUser, project)
 	}
 	err = rows.Err()
 	if err != nil {
-		panic(err)
+		log.Println(err)
 	}
 	return projsFromUser
 }
@@ -135,7 +130,7 @@ func addNewUserHandler(c echo.Context) error {
 	}
 	hash, err := util.HashPassword(u.Password)
 	if err != nil {
-		log.Fatal("Error hashing password")
+		log.Println("Error hashing password")
 		return c.JSON(http.StatusBadRequest, "Error signing up new user - 2")
 	}
 	u.Password = hash
