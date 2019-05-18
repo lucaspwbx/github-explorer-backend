@@ -8,13 +8,13 @@ import (
 	"os"
 	"strconv"
 	"teste/db"
+	"teste/util"
 
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 	"github.com/lib/pq"
 	"github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
-	"golang.org/x/crypto/bcrypt"
 )
 
 const (
@@ -46,16 +46,6 @@ type user struct {
 	Languages        string `json:"languages"`
 	Frequency        string `json:"frequency"`
 	FavoriteLanguage string `json:"favorite_language"`
-}
-
-func HashPassword(password string) (string, error) {
-	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
-	return string(bytes), err
-}
-
-func CheckPasswordHash(password, hash string) bool {
-	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
-	return err == nil
 }
 
 func sendWelcomeEmail(username string, email string) {
@@ -167,7 +157,7 @@ func addNewUserHandler(c echo.Context) error {
 	if err := c.Bind(u); err != nil {
 		return c.JSON(http.StatusBadRequest, "Error signing up new user - 1")
 	}
-	hash, err := HashPassword(u.Password)
+	hash, err := util.HashPassword(u.Password)
 	if err != nil {
 		log.Fatal("Error hashing password")
 		return c.JSON(http.StatusBadRequest, "Error signing up new user - 2")
