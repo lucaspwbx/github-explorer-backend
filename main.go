@@ -1,8 +1,6 @@
 package main
 
 import (
-	"database/sql"
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -12,7 +10,6 @@ import (
 
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
-	"github.com/lib/pq"
 )
 
 const (
@@ -27,104 +24,8 @@ var (
 	config db.Config
 )
 
-type project struct {
-	Id          int    `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Author      string `json:"author"`
-	Language    string `json:"language"`
-	Url         string `json:"url"`
-}
-
-type user struct {
-	Id               int    `json:"id"`
-	Username         string `json:"username"`
-	Password         string `json:"password"`
-	Email            string `json:"email"`
-	Languages        string `json:"languages"`
-	Frequency        string `json:"frequency"`
-	FavoriteLanguage string `json:"favorite_language"`
-}
-
-func addProject(db *sql.DB, proj *project) (int, error) {
-	sqlStmt := `INSERT INTO projects(name, description, author, language, url) VALUES ($1, $2, $3, $4, $5) RETURNING id`
-	err := db.QueryRow(sqlStmt, proj.Name, proj.Description, proj.Author, proj.Language, proj.Url).Scan(&proj.Id)
-	if err != nil {
-		log.Println("Add project", err)
-		return 0, err
-	}
-	log.Println("New record is is: ", proj.Id)
-	return proj.Id, nil
-}
-
-func bookmarkProject(db *sql.DB, userId int, projectId int) (bool, error) {
-	sqlStmt := `INSERT INTO bookmarked_projects(user_id, project_id) VALUES ($1, $2)`
-	_, err := db.Exec(sqlStmt, userId, projectId)
-	if err != nil {
-		if err, ok := err.(*pq.Error); ok {
-			if err.Code == "23505" {
-				log.Println("Project is already bookmarked!")
-				return false, err
-			}
-		}
-		log.Fatal("Bookmark project: ", err)
-	}
-	return true, nil
-}
-
-func projectExists(db *sql.DB, name string, author string, language string) (int, error) {
-	sqlStmt := `SELECT id FROM projects WHERE name = $1 AND author = $2 AND language = $3`
-	id := 0
-	err := db.QueryRow(sqlStmt, name, author, language).Scan(&id)
-	if err != nil {
-		log.Println("Project exists: ", err)
-		return 0, err
-	}
-	return id, nil
-}
-
-func confirmUser(db *sql.DB, u *user) (*user, error) {
-	sqlStmt := `SELECT id, languages, frequency, favorite_language FROM users WHERE username = $1 AND email = $2 AND password = $3;`
-	user := &user{}
-	err := db.QueryRow(sqlStmt, u.Username, u.Email, u.Password).Scan(&user.Id, &user.Languages, &user.Frequency, &user.FavoriteLanguage)
-	if err != nil {
-		return nil, err
-	}
-	return user, nil
-}
-
-func fetchUserBookmarkedProjects(db *sql.DB, userId int) []project {
-	var projsFromUser []project
-	projsFromUser = []project{}
-	rows, err := db.Query(`
-		select p.id, p.name, p.description, p.author, p.language, p.url from projects p inner join bookmarked_projects bp on p.id = bp.project_id where bp.user_id = $1`, userId)
-	if err != nil {
-		panic(err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		project := project{}
-		err := rows.Scan(
-			&project.Id,
-			&project.Name,
-			&project.Description,
-			&project.Author,
-			&project.Language,
-			&project.Url)
-		if err != nil {
-			log.Println(err)
-		}
-		projsFromUser = append(projsFromUser, project)
-	}
-	err = rows.Err()
-	if err != nil {
-		log.Println(err)
-	}
-	return projsFromUser
-}
-
 func addNewUserHandler(c echo.Context) error {
-	u := &user{}
+	u := &db.User{}
 	if err := c.Bind(u); err != nil {
 		return c.JSON(http.StatusBadRequest, "Error signing up new user - 1")
 	}
@@ -149,11 +50,11 @@ func addNewUserHandler(c echo.Context) error {
 }
 
 func loginUserHandler(c echo.Context) error {
-	u := &user{}
+	u := &db.User{}
 	if err := c.Bind(u); err != nil {
 		return err
 	}
-	user, err := confirmUser(config.Connection(), u)
+	user, err := db.ConfirmUser(config.Connection(), u)
 	if err != nil {
 		log.Println("Hash does not match")
 		return c.JSON(http.StatusForbidden, "Login credentials are not correct")
@@ -169,9 +70,6 @@ func main() {
 	config := db.NewConfig(host, port, userPg, password, dbname)
 	e := echo.New()
 	e.Use(middleware.CORS())
-	e.GET("/", func(c echo.Context) error {
-		return c.String(http.StatusOK, "Hello World")
-	})
 	e.POST("/users", addNewUserHandler)
 	e.POST("/users/login", loginUserHandler)
 	e.POST("/users/logout", logoutUserHandler)
@@ -180,14 +78,14 @@ func main() {
 		if err != nil {
 			return err
 		}
-		projects := fetchUserBookmarkedProjects(config.Connection(), userId)
+		projects := db.FetchUserBookmarkedProjects(config.Connection(), userId)
 		if projects != nil {
 			return c.JSON(http.StatusOK, projects)
 		}
 		return c.JSON(http.StatusOK, projects)
 	})
 	e.POST("/users/:id/bookmarked_projects", func(c echo.Context) error {
-		p := &project{}
+		p := &db.Project{}
 		userId, err := strconv.Atoi(c.Param("id"))
 		if err != nil {
 			return err
@@ -195,20 +93,20 @@ func main() {
 		if err := c.Bind(p); err != nil {
 			return err
 		}
-		projectId, err := projectExists(config.Connection(), p.Name, p.Author, p.Language)
+		projectId, err := db.ProjectExists(config.Connection(), p.Name, p.Author, p.Language)
 		if err != nil {
-			newProjectId, err := addProject(config.Connection(), p)
+			newProjectId, err := db.AddProject(config.Connection(), p)
 			if err != nil {
 				return err
 			}
-			_, err = bookmarkProject(config.Connection(), userId, newProjectId)
+			_, err = db.BookmarkProject(config.Connection(), userId, newProjectId)
 			if err != nil {
 				log.Println("Problems bookmarking project 1")
 				return c.JSON(http.StatusBadRequest, "Failed to bookmark project -> 1")
 			}
 			return c.JSON(http.StatusOK, "Bookmarked project 1")
 		}
-		_, err = bookmarkProject(config.Connection(), userId, projectId)
+		_, err = db.BookmarkProject(config.Connection(), userId, projectId)
 		if err != nil {
 			log.Println("Problems bookmarking project 2")
 			return c.JSON(http.StatusBadRequest, "Failed to bookmark project -> 2")
