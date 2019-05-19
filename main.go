@@ -17,7 +17,7 @@ var (
 	config *db.Config
 )
 
-func addNewUserHandler(c echo.Context) error {
+func signUpHandler(c echo.Context) error {
 	u := &db.User{}
 	if err := c.Bind(u); err != nil {
 		return c.JSON(http.StatusBadRequest, "Error signing up new user - 1")
@@ -39,10 +39,11 @@ func addNewUserHandler(c echo.Context) error {
 		log.Println("Error sending welcome email!")
 	}
 
+	// generate JWT token and return on response
 	return c.JSON(http.StatusOK, "OK")
 }
 
-func loginUserHandler(c echo.Context) error {
+func signinHandler(c echo.Context) error {
 	u := &db.User{}
 	if err := c.Bind(u); err != nil {
 		return err
@@ -52,14 +53,12 @@ func loginUserHandler(c echo.Context) error {
 		log.Println("Hash does not match")
 		return c.JSON(http.StatusForbidden, "Login credentials are not correct")
 	}
+	// generate JWT token and return on response
 	return c.JSON(http.StatusOK, user)
 }
 
-func logoutUserHandler(c echo.Context) error {
-	return nil
-}
-
 func getBookmarkedProjectsHandler(c echo.Context) error {
+	// verify jwt token
 	userId, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return err
@@ -72,6 +71,7 @@ func getBookmarkedProjectsHandler(c echo.Context) error {
 }
 
 func addBookmarkedProjectHandler(c echo.Context) error {
+	// verify jwt token
 	p := &db.Project{}
 	userId, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -114,9 +114,8 @@ func main() {
 		os.Getenv("DBNAME"))
 	e := echo.New()
 	e.Use(middleware.CORS())
-	e.POST("/users", addNewUserHandler)
-	e.POST("/users/login", loginUserHandler)
-	e.POST("/users/logout", logoutUserHandler)
+	e.POST("/users", signUpHandler)
+	e.POST("/users/login", signinHandler)
 	e.GET("/users/:id/bookmarked_projects", getBookmarkedProjectsHandler)
 	e.POST("/users/:id/bookmarked_projects", addBookmarkedProjectHandler)
 	e.Logger.Fatal(e.Start(":1323"))
