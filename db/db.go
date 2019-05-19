@@ -8,13 +8,13 @@ import (
 	"github.com/lib/pq"
 )
 
-const (
-	host     = "localhost"
-	port     = 5432
-	userPg   = "lucas"
-	password = "teste"
-	dbname   = "foo_dev"
-)
+//const (
+//host     = "localhost"
+//port     = 5432
+//userPg   = "lucas"
+//password = "teste"
+//dbname   = "foo_dev"
+//)
 
 type Config struct {
 	conn *sql.DB

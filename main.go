@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"teste/db"
 	"teste/service"
@@ -10,14 +11,6 @@ import (
 
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
-)
-
-const (
-	host     = "localhost"
-	port     = 5432
-	userPg   = "lucas"
-	password = "teste"
-	dbname   = "foo_dev"
 )
 
 var (
@@ -109,7 +102,16 @@ func addBookmarkedProjectHandler(c echo.Context) error {
 }
 
 func main() {
-	config = db.NewConfig(host, port, userPg, password, dbname)
+	port, err := strconv.Atoi(os.Getenv("PORT"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	config = db.NewConfig(
+		os.Getenv("HOST"),
+		port,
+		os.Getenv("USER"),
+		os.Getenv("PASS"),
+		os.Getenv("DBNAME"))
 	e := echo.New()
 	e.Use(middleware.CORS())
 	e.POST("/users", addNewUserHandler)
