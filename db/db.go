@@ -27,7 +27,7 @@ func NewConfig(host string, port int, user string, password string, dbName strin
 	if err != nil {
 		panic(err)
 	}
-	defer conn.Close()
+	//defer conn.Close()
 
 	err = conn.Ping()
 	if err != nil {
