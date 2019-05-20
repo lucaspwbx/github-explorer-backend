@@ -8,7 +8,9 @@ import (
 	"teste/db"
 	"teste/service"
 	"teste/util"
+	"time"
 
+	"github.com/dgrijalva/jwt-go"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 )
@@ -18,6 +20,12 @@ var (
 )
 
 type ErrorResponse map[string]interface{}
+
+type jwtCustomClaims struct {
+	Id       int    `json:id"`
+	Username string `json:"username"`
+	jwt.StandardClaims
+}
 
 func signUpHandler(c echo.Context) error {
 	u := &db.User{}
@@ -59,8 +67,32 @@ func signinHandler(c echo.Context) error {
 		log.Println("Hash does not match")
 		return c.JSON(http.StatusForbidden, ErrorResponse{"code": 4, "message": "Login credentials are not correct"})
 	}
-	// generate JWT token and return on response
-	return c.JSON(http.StatusOK, user)
+	claims := &jwtCustomClaims{
+		user.Id,
+		user.Username,
+		jwt.StandardClaims{
+			ExpiresAt: time.Now().Add(time.Hour * 24).Unix(),
+		},
+	}
+	// Create token with claims
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	// Generate encoded token and send it as response.
+	t, err := token.SignedString([]byte("secret"))
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(http.StatusOK, echo.Map{
+		"token": t,
+		"user": map[string]interface{}{
+			"id":                user.Id,
+			"username":          user.Username,
+			"languages":         user.Languages,
+			"favorite_language": user.FavoriteLanguage,
+			"frequency":         user.Frequency,
+		},
+	})
 }
 
 func getBookmarkedProjectsHandler(c echo.Context) error {

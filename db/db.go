@@ -99,10 +99,11 @@ func ProjectExists(db *sql.DB, name string, author string, language string) (int
 }
 
 func ConfirmUser(db *sql.DB, u *User) (*User, error) {
-	sqlStmt := `SELECT id, languages, frequency, favorite_language FROM users WHERE username = $1 AND email = $2 AND password = $3;`
+	sqlStmt := `SELECT id, username, languages, frequency, favorite_language FROM users WHERE username = $1 AND email = $2 AND password = $3;`
 	user := &User{}
-	err := db.QueryRow(sqlStmt, u.Username, u.Email, u.Password).Scan(&user.Id, &user.Languages, &user.Frequency, &user.FavoriteLanguage)
+	err := db.QueryRow(sqlStmt, u.Username, u.Email, u.Password).Scan(&user.Id, &user.Username, &user.Languages, &user.Frequency, &user.FavoriteLanguage)
 	if err != nil {
+		log.Println(err)
 		return nil, err
 	}
 	return user, nil
