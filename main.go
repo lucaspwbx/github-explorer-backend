@@ -22,7 +22,7 @@ var (
 type ErrorResponse map[string]interface{}
 
 type jwtCustomClaims struct {
-	Id       int    `json:id"`
+	Id       int    `json:"id"`
 	Username string `json:"username"`
 	jwt.StandardClaims
 }
@@ -97,12 +97,21 @@ func signinHandler(c echo.Context) error {
 
 func getBookmarkedProjectsHandler(c echo.Context) error {
 	// verify jwt token
+	user := c.Get("user").(*jwt.Token)
+	claims := user.Claims.(*jwtCustomClaims)
+	//log.Println(claims.Username)
+	//log.Println(claims.Id)
 	userId, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		log.Println("Problem converting id to integer")
 		return c.JSON(http.StatusBadRequest, ErrorResponse{"code": 5, "message": "Bad request!"})
 	}
-	projects := db.FetchUserBookmarkedProjects(config.Connection(), userId)
+	if claims.Id != userId {
+		log.Println("user id is not the same as the id from the token")
+		return c.JSON(http.StatusBadRequest, ErrorResponse{"code": 9, "message": "Bad request!"})
+	}
+	//projects := db.FetchUserBookmarkedProjects(config.Connection(), userId)
+	projects := db.FetchUserBookmarkedProjects(config.Connection(), claims.Id)
 	return c.JSON(http.StatusOK, projects)
 }
 
@@ -164,9 +173,16 @@ func main() {
 		os.Getenv("DBNAME"))
 	e := echo.New()
 	e.Use(middleware.CORS())
+	config := middleware.JWTConfig{
+		Claims:     &jwtCustomClaims{},
+		SigningKey: []byte("secret"),
+	}
+	r := e.Group("")
+	r.Use(middleware.JWTWithConfig(config))
 	e.POST("/users", signUpHandler)
 	e.POST("/users/login", signinHandler)
-	e.GET("/users/:id/bookmarked_projects", getBookmarkedProjectsHandler)
+	//e.GET("/users/:id/bookmarked_projects", getBookmarkedProjectsHandler)
+	r.GET("/users/:id/bookmarked_projects", getBookmarkedProjectsHandler)
 	e.POST("/users/:id/bookmarked_projects", addBookmarkedProjectHandler)
 	e.Logger.Fatal(e.Start(":1323"))
 }
