@@ -17,22 +17,27 @@ var (
 	config *db.Config
 )
 
+type ErrorResponse map[string]interface{}
+
 func signUpHandler(c echo.Context) error {
 	u := &db.User{}
 	if err := c.Bind(u); err != nil {
-		return c.JSON(http.StatusBadRequest, "Error signing up new user - 1")
+		return c.JSON(http.StatusBadRequest, ErrorResponse{"code": 1, "message": "Bad request!"})
 	}
 	hash, err := util.HashPassword(u.Password)
 	if err != nil {
-		log.Println("Error hashing password")
-		return c.JSON(http.StatusBadRequest, "Error signing up new user - 2")
+		log.Println("Error hashing password...")
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{"code": 2, "message": "Server error"})
 	}
 	u.Password = hash
 	sqlStmt := `INSERT INTO users(username, password, email, created_on) VALUES ($1, $2, $3, $4) RETURNING id`
 	err = config.Connection().QueryRow(sqlStmt, u.Username, u.Password, u.Email, "now()").Scan(&u.Id)
 	if err != nil {
 		log.Println(err)
-		return c.JSON(http.StatusBadRequest, "Error signing up new user - 3")
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{
+			"code":    3,
+			"message": "SQL Error",
+		})
 	}
 	log.Println("New user is id: ", u.Id)
 	if err = service.SendEmail(u.Username, u.Email); err != nil {
@@ -46,12 +51,13 @@ func signUpHandler(c echo.Context) error {
 func signinHandler(c echo.Context) error {
 	u := &db.User{}
 	if err := c.Bind(u); err != nil {
-		return err
+		// log this error
+		return c.JSON(http.StatusBadRequest, ErrorResponse{"code": 1, "message": "Bad request!"})
 	}
 	user, err := db.ConfirmUser(config.Connection(), u)
 	if err != nil {
 		log.Println("Hash does not match")
-		return c.JSON(http.StatusForbidden, "Login credentials are not correct")
+		return c.JSON(http.StatusForbidden, ErrorResponse{"code": 4, "message": "Login credentials are not correct"})
 	}
 	// generate JWT token and return on response
 	return c.JSON(http.StatusOK, user)
@@ -61,12 +67,10 @@ func getBookmarkedProjectsHandler(c echo.Context) error {
 	// verify jwt token
 	userId, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return err
+		log.Println("Problem converting id to integer")
+		return c.JSON(http.StatusBadRequest, ErrorResponse{"code": 5, "message": "Bad request!"})
 	}
 	projects := db.FetchUserBookmarkedProjects(config.Connection(), userId)
-	if projects != nil {
-		return c.JSON(http.StatusOK, projects)
-	}
 	return c.JSON(http.StatusOK, projects)
 }
 
@@ -75,30 +79,44 @@ func addBookmarkedProjectHandler(c echo.Context) error {
 	p := &db.Project{}
 	userId, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return err
+		log.Println("Problem converting id to integer")
+		return c.JSON(http.StatusBadRequest, ErrorResponse{"code": 5, "message": "Bad request!"})
 	}
 	if err := c.Bind(p); err != nil {
-		return err
+		return c.JSON(http.StatusBadRequest, ErrorResponse{"code": 1, "message": "Bad request!"})
 	}
 	projectId, err := db.ProjectExists(config.Connection(), p.Name, p.Author, p.Language)
 	if err != nil {
 		newProjectId, err := db.AddProject(config.Connection(), p)
 		if err != nil {
-			return err
+			log.Println("Problem saving new project!")
+			return c.JSON(http.StatusInternalServerError,
+				ErrorResponse{
+					"code":    6,
+					"message": "Failed to add new project",
+				})
 		}
 		_, err = db.BookmarkProject(config.Connection(), userId, newProjectId)
 		if err != nil {
 			log.Println("Problems bookmarking project 1")
-			return c.JSON(http.StatusBadRequest, "Failed to bookmark project -> 1")
+			return c.JSON(http.StatusInternalServerError,
+				ErrorResponse{
+					"code":    7,
+					"message": "Failed to bookmark project",
+				})
 		}
 		return c.JSON(http.StatusOK, "Bookmarked project 1")
 	}
 	_, err = db.BookmarkProject(config.Connection(), userId, projectId)
 	if err != nil {
 		log.Println("Problems bookmarking project 2")
-		return c.JSON(http.StatusBadRequest, "Failed to bookmark project -> 2")
+		return c.JSON(http.StatusInternalServerError,
+			ErrorResponse{
+				"code":    8,
+				"message": "Failed to bookmark project",
+			})
 	}
-	return c.JSON(http.StatusOK, "bookmarked project 2")
+	return c.JSON(http.StatusOK, "Bookmarked project 2")
 }
 
 func main() {
