@@ -52,8 +52,33 @@ func signUpHandler(c echo.Context) error {
 		log.Println("Error sending welcome email!")
 	}
 
-	// generate JWT token and return on response
-	return c.JSON(http.StatusOK, "OK")
+	claims := &jwtCustomClaims{
+		u.Id,
+		u.Username,
+		jwt.StandardClaims{
+			ExpiresAt: time.Now().Add(time.Hour * 24).Unix(),
+		},
+	}
+	// Create token with claims
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	// Generate encoded token and send it as response.
+	//t, err := token.SignedString([]byte("secret"))
+	t, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(http.StatusOK, echo.Map{
+		"token": t,
+		"user": map[string]interface{}{
+			"id":                u.Id,
+			"username":          u.Username,
+			"languages":         u.Languages,
+			"favorite_language": u.FavoriteLanguage,
+			"frequency":         u.Frequency,
+		},
+	})
 }
 
 func signinHandler(c echo.Context) error {
@@ -78,7 +103,7 @@ func signinHandler(c echo.Context) error {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
 	// Generate encoded token and send it as response.
-	t, err := token.SignedString([]byte("secret"))
+	t, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
 	if err != nil {
 		return err
 	}
@@ -117,6 +142,11 @@ func getBookmarkedProjectsHandler(c echo.Context) error {
 
 func addBookmarkedProjectHandler(c echo.Context) error {
 	// verify jwt token
+	user := c.Get("user").(*jwt.Token)
+	claims := user.Claims.(*jwtCustomClaims)
+	log.Println(claims.Username)
+	log.Println(claims.Id)
+
 	p := &db.Project{}
 	userId, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -174,8 +204,9 @@ func main() {
 	e := echo.New()
 	e.Use(middleware.CORS())
 	config := middleware.JWTConfig{
-		Claims:     &jwtCustomClaims{},
-		SigningKey: []byte("secret"),
+		Claims: &jwtCustomClaims{},
+		//SigningKey: []byte("secret"),
+		SigningKey: []byte(os.Getenv("JWT_SECRET")),
 	}
 	r := e.Group("")
 	r.Use(middleware.JWTWithConfig(config))
@@ -183,6 +214,6 @@ func main() {
 	e.POST("/users/login", signinHandler)
 	//e.GET("/users/:id/bookmarked_projects", getBookmarkedProjectsHandler)
 	r.GET("/users/:id/bookmarked_projects", getBookmarkedProjectsHandler)
-	e.POST("/users/:id/bookmarked_projects", addBookmarkedProjectHandler)
+	r.POST("/users/:id/bookmarked_projects", addBookmarkedProjectHandler)
 	e.Logger.Fatal(e.Start(":1323"))
 }
