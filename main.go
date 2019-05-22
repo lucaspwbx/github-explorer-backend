@@ -124,8 +124,6 @@ func getBookmarkedProjectsHandler(c echo.Context) error {
 	// verify jwt token
 	user := c.Get("user").(*jwt.Token)
 	claims := user.Claims.(*jwtCustomClaims)
-	//log.Println(claims.Username)
-	//log.Println(claims.Id)
 	userId, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		log.Println("Problem converting id to integer")
@@ -141,17 +139,17 @@ func getBookmarkedProjectsHandler(c echo.Context) error {
 }
 
 func addBookmarkedProjectHandler(c echo.Context) error {
-	// verify jwt token
 	user := c.Get("user").(*jwt.Token)
 	claims := user.Claims.(*jwtCustomClaims)
-	log.Println(claims.Username)
-	log.Println(claims.Id)
 
 	p := &db.Project{}
 	userId, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		log.Println("Problem converting id to integer")
 		return c.JSON(http.StatusBadRequest, ErrorResponse{"code": 5, "message": "Bad request!"})
+	}
+	if claims.Id != userId {
+		return c.JSON(http.StatusBadRequest, ErrorResponse{"code": 10, "message": "User is is not the same as claims Id!"})
 	}
 	if err := c.Bind(p); err != nil {
 		return c.JSON(http.StatusBadRequest, ErrorResponse{"code": 1, "message": "Bad request!"})
@@ -212,7 +210,6 @@ func main() {
 	r.Use(middleware.JWTWithConfig(config))
 	e.POST("/users", signUpHandler)
 	e.POST("/users/login", signinHandler)
-	//e.GET("/users/:id/bookmarked_projects", getBookmarkedProjectsHandler)
 	r.GET("/users/:id/bookmarked_projects", getBookmarkedProjectsHandler)
 	r.POST("/users/:id/bookmarked_projects", addBookmarkedProjectHandler)
 	e.Logger.Fatal(e.Start(":1323"))
